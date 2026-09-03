@@ -1,10 +1,6 @@
-
 name = "twilight-sun-c74b"
-compatibility_date = "2024-12-01"
+compatibility_date = "2024-11-01"
 
 [assets]
 directory = "./"
 not_found_handling = "single-page-application"
-
-[observability]
-enabled = true
