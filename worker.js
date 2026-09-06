@@ -9,26 +9,46 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { headers: cors });
 
     const PAYPAL_ENV = (env.PAYPAL_ENV || "sandbox").toLowerCase();
-    const API_BASE = PAYPAL_ENV === "sandbox" ? "https://api-m.sandbox.paypal.com" : "https://api-m.paypal.com";
+    let PAYPAL_ENV_EFFECTIVE = PAYPAL_ENV;
+    let API_BASE = PAYPAL_ENV === "sandbox" ? "https://api-m.sandbox.paypal.com" : "https://api-m.paypal.com";
     // Aceita qualquer nome + fallback direto pra suas credenciais (caso esqueca de colocar no Cloudflare)
     const CLIENT_ID = (env.PAYPAL_CLIENT_ID || env.PAYPAL_SANDBOX_CLIENT_ID || "BAAKh72P0JbRLyfjDWIBGR-WtlMkX2U1WHk1R8RyX3IyXb3gHAxLEymZW3EZ6gn5acIRAVJ9xViiWgs0O4").trim();
     const SECRET = (env.PAYPAL_CLIENT_SECRET || env.PAYPAL_SANDBOX_CLIENT_SECRET || "EBifyADQMZLX6zcqdG_Sh7Qx1a3dEWjX9GYb510c7n-rAbbbki1217jcBJwChvw0XK-CZyWmzdLSIozx").trim();
 
+    
     async function getAccessToken() {
       if (!CLIENT_ID || !SECRET) throw new Error(`Missing credentials: CLIENT_ID=${!!CLIENT_ID} SECRET=${!!SECRET}`);
-      const auth = btoa(`${CLIENT_ID}:${SECRET}`);
-      const res = await fetch(`${API_BASE}/v1/oauth2/token`, {
-        method: "POST",
-        headers: { "Authorization": `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" },
-        body: "grant_type=client_credentials",
-      });
-      const text = await res.text();
-      let data; try { data = JSON.parse(text); } catch { data = {}; }
-      if (!data.access_token) throw new Error(`PayPal auth failed (${PAYPAL_ENV}): ${text.slice(0,500)}`);
-      return data.access_token;
+      // Tenta no ambiente configurado primeiro, se falhar tenta no outro
+      const envs = [PAYPAL_ENV, PAYPAL_ENV === "sandbox" ? "live" : "sandbox"];
+      let lastError = "";
+      for (const tryEnv of envs) {
+        const tryBase = tryEnv === "sandbox" ? "https://api-m.sandbox.paypal.com" : "https://api-m.paypal.com";
+        const auth = btoa(`${CLIENT_ID}:${SECRET}`);
+        try {
+          const res = await fetch(`${tryBase}/v1/oauth2/token`, {
+            method: "POST",
+            headers: { "Authorization": `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" },
+            body: "grant_type=client_credentials",
+          });
+          const text = await res.text();
+          let data; try { data = JSON.parse(text); } catch { data = {}; }
+          if (data.access_token) {
+            // Se conseguiu em env diferente, loga
+            if (tryEnv !== PAYPAL_ENV) {
+              console.log(`Auth succeeded on ${tryEnv} instead of ${PAYPAL_ENV}`);
+            }
+            PAYPAL_ENV_EFFECTIVE = tryEnv;
+            API_BASE = tryBase;
+            return data.access_token;
+          }
+          lastError = `${tryEnv}: ${text.slice(0,500)}`;
+        } catch (e) {
+          lastError = `${tryEnv}: ${e.message}`;
+        }
+      }
+      throw new Error(`PayPal auth failed (tried sandbox and live): ${lastError} | CLIENT_ID=${CLIENT_ID.slice(0,12)}...`);
     }
-
-    // Endpoint novo recomendado pela doc v6 - retorna clientId publico (seguro)
+// Endpoint novo recomendado pela doc v6 - retorna clientId publico (seguro)
     if (url.pathname === "/api/config") {
       return new Response(JSON.stringify({ 
         clientId: CLIENT_ID,
