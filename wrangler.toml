@@ -10,7 +10,7 @@ not_found_handling = "single-page-application"
 PAYPAL_ENV = "live"
 # Secrets must be set in Cloudflare Dashboard:
 # PAYPAL_CLIENT_ID = BAAdXauohccGYk8cZbH4lDfMi6Q6BPwwi39HJOHPAjoMbRURbUFM5iGhTtNmp2qviwo7Epa_sP_zpi1NkQ
-# PAYPAL_CLIENT_SECRET = (seu secret live)
+# PAYPAL_CLIENT_SECRET = EH5wiOaR-L44exNiXtoIdEpY43EFNEe-FZglkwGQY4bVotW_p_boMnxtIkNhfsW6jcVwdfhO10a2IEMm
 
 # Build config for Cloudflare Pages/Workers Builds
 [build]
