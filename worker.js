@@ -8,13 +8,14 @@ export default {
     };
     if (request.method === "OPTIONS") return new Response(null, { headers: cors });
 
-    const PAYPAL_ENV = (env.PAYPAL_ENV || env.PAYPAL_MODE || "sandbox").toLowerCase();
+    const PAYPAL_ENV = (env.PAYPAL_ENV || "sandbox").toLowerCase();
     const API_BASE = PAYPAL_ENV === "sandbox" ? "https://api-m.sandbox.paypal.com" : "https://api-m.paypal.com";
-    const CLIENT_ID = (env.PAYPAL_CLIENT_ID || env.PAYPAL_SANDBOX_CLIENT_ID || env.CLIENT_ID || env.PAYPAL_CLIENT || "").trim();
-    const SECRET = (env.PAYPAL_CLIENT_SECRET || env.PAYPAL_SANDBOX_CLIENT_SECRET || env.PAYPAL_SECRET || env.SECRET || "").trim();
+    // Aceita qualquer nome + fallback direto pra suas credenciais (caso esqueca de colocar no Cloudflare)
+    const CLIENT_ID = (env.PAYPAL_CLIENT_ID || env.PAYPAL_SANDBOX_CLIENT_ID || "BAAKh72P0JbRLyfjDWIBGR-WtlMkX2U1WHk1R8RyX3IyXb3gHAxLEymZW3EZ6gn5acIRAVJ9xViiWgs0O4").trim();
+    const SECRET = (env.PAYPAL_CLIENT_SECRET || env.PAYPAL_SANDBOX_CLIENT_SECRET || "EBifyADQMZLX6zcqdG_Sh7Qx1a3dEWjX9GYb510c7n-rAbbbki1217jcBJwChvw0XK-CZyWmzdLSIozx").trim();
 
     async function getAccessToken() {
-      if (!CLIENT_ID || !SECRET) throw new Error(`Missing credentials: CLIENT_ID=${!!CLIENT_ID} SECRET=${!!SECRET}. Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET in Cloudflare Variables (Production)`);
+      if (!CLIENT_ID || !SECRET) throw new Error(`Missing credentials: CLIENT_ID=${!!CLIENT_ID} SECRET=${!!SECRET}`);
       const auth = btoa(`${CLIENT_ID}:${SECRET}`);
       const res = await fetch(`${API_BASE}/v1/oauth2/token`, {
         method: "POST",
@@ -22,12 +23,13 @@ export default {
         body: "grant_type=client_credentials",
       });
       const text = await res.text();
-      let data; try { data = JSON.parse(text); } catch { data = {raw:text}; }
-      if (!data.access_token) throw new Error(`PayPal auth failed (${PAYPAL_ENV}): ${text.slice(0,400)} | ID=${CLIENT_ID.slice(0,12)}...`);
+      let data; try { data = JSON.parse(text); } catch { data = {}; }
+      if (!data.access_token) throw new Error(`PayPal auth failed (${PAYPAL_ENV}): ${text.slice(0,500)}`);
       return data.access_token;
     }
 
-    if (url.pathname === "/api/config" || url.pathname === "/api/paypal/config") {
+    // Endpoint novo recomendado pela doc v6 - retorna clientId publico (seguro)
+    if (url.pathname === "/api/config") {
       return new Response(JSON.stringify({ 
         clientId: CLIENT_ID,
         env: PAYPAL_ENV,
@@ -44,28 +46,22 @@ export default {
         const form = new URLSearchParams();
         form.append("grant_type", "client_credentials");
         form.append("response_type", "client_token");
-        try { form.append("domains[]", url.origin); } catch {}
+        form.append("domains[]", url.origin);
         const tokenRes = await fetch(`${API_BASE}/v1/oauth2/token`, {
           method: "POST",
           headers: { "Authorization": `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" },
           body: form.toString()
         });
-        const tokenText = await tokenRes.text();
-        let tokenData; try { tokenData = JSON.parse(tokenText); } catch { tokenData = {}; }
-        if (tokenData.access_token) {
-          return new Response(JSON.stringify({ clientToken: tokenData.access_token }), { headers: { ...cors, "Content-Type": "application/json" } });
-        }
-        const accessToken = await getAccessToken();
-        const res = await fetch(`${API_BASE}/v1/identity/generate-token`, {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${accessToken}`, "Accept-Language": "en_US", "Content-Type": "application/json" },
-        });
-        const text = await res.text();
-        let data; try { data = JSON.parse(text); } catch { data = {}; }
-        if (!data.client_token) throw new Error(text.slice(0,500));
-        return new Response(JSON.stringify({ clientToken: data.client_token }), { headers: { ...cors, "Content-Type": "application/json" } });
-      } catch (e) {
-        return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
+        const txt = await tokenRes.text();
+        let jd; try { jd = JSON.parse(txt); } catch { jd = {}; }
+        if (jd.access_token) return new Response(JSON.stringify({ clientToken: jd.access_token }), { headers: { ...cors, "Content-Type": "application/json" } });
+        const at = await getAccessToken();
+        const r = await fetch(`${API_BASE}/v1/identity/generate-token`, { method:"POST", headers:{ "Authorization": `Bearer ${at}`, "Accept-Language":"en_US", "Content-Type":"application/json" }});
+        const t = await r.text(); let d; try { d=JSON.parse(t);} catch { d={}; }
+        if(!d.client_token) throw new Error(t.slice(0,500));
+        return new Response(JSON.stringify({ clientToken: d.client_token }), { headers: {...cors, "Content-Type":"application/json"}});
+      } catch(e){
+        return new Response(JSON.stringify({ error:e.message }), { status:500, headers:{...cors, "Content-Type":"application/json"}});
       }
     }
 
@@ -88,7 +84,7 @@ export default {
         });
         const txt = await orderRes.text();
         if (!orderRes.ok) return new Response(txt, { status:500, headers:{...cors, "Content-Type":"application/json"}});
-        let j; try { j = JSON.parse(txt); } catch { j = {}; }
+        let j; try { j=JSON.parse(txt);} catch { j={}; }
         return new Response(JSON.stringify({ id: j.id }), { headers:{...cors, "Content-Type":"application/json"}});
       } catch(e){
         return new Response(JSON.stringify({ error:e.message }), { status:500, headers:{...cors, "Content-Type":"application/json"}});
@@ -110,9 +106,9 @@ export default {
 
     if (url.pathname === "/api/health") {
       return new Response(JSON.stringify({ 
-        status:"ok", env:PAYPAL_ENV, sdk:"v6-clientId-recommended", has_client_id:!!CLIENT_ID, has_secret:!!SECRET, 
+        status:"ok", env:PAYPAL_ENV, sdk:"v6-clientId-ready", has_client_id:!!CLIENT_ID, has_secret:!!SECRET, 
         client_id_prefix: CLIENT_ID.slice(0,12),
-        all_keys: Object.keys(env).filter(k=>k.toLowerCase().includes('paypal') || k.toLowerCase().includes('client') || k.toLowerCase().includes('secret'))
+        all_keys: Object.keys(env)
       }), { headers:{...cors, "Content-Type":"application/json"}});
     }
 
