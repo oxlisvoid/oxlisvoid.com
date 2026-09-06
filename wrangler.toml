@@ -8,6 +8,6 @@ not_found_handling = "single-page-application"
 binding = "ASSETS"
 
 [vars]
-PAYPAL_ENV = "sandbox"
-PAYPAL_CLIENT_ID = "BAArbXEViQ9tTcf4iujvXjw5B90Z_mlOsfQeHp_9LJSvnanGjdTWskzCGyj9k9Fg3_rcUiAK3Xn4ILAqui"
-PAYPAL_CLIENT_SECRET = "EJdxpGaVKYQ977IQyIQgNKOTvudwjpMYs80zQpvXG89JT5bJpAbu7ZE2L10zUq7zx36nOVsxrDmOJdBc"
+PAYPAL_ENV = "live"
+PAYPAL_CLIENT_ID = "BAAKh72P0JbRLyfjDWIBGR-WtlMkX2U1WHk1R8RyX3IyXb3gHAxLEymZW3EZ6gn5acIRAVJ9xViiWgs0O4"
+PAYPAL_CLIENT_SECRET = "EBifyADQMZLX6zcqdG_Sh7Qx1a3dEWjX9GYb510c7n-rAbbbki1217jcBJwChvw0XK-CZyWmzdLSIozx"
