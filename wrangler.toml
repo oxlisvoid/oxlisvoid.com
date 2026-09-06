@@ -1,8 +1,10 @@
-name = "twilight-sun-c74b"
-compatibility_date = "2024-11-01"
+name = "oxlisvoid"
 main = "worker.js"
+compatibility_date = "2026-09-06"
+
+[vars]
+PAYPAL_ENV = "live"
 
 [assets]
-directory = "./"
-binding = "ASSETS"
+directory = "./public"
 not_found_handling = "single-page-application"
